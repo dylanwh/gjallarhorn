@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 )
 
 var _, uniqueLocalNetwork, _ = net.ParseCIDR("fc00::/7")
@@ -16,6 +17,13 @@ func main() {
 		log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
 		return
 	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
+	}
+	fmt.Printf("Hostname is %s\n", hostname)
+
 	for _, iface := range ifaces {
 		if skipInterface(iface) {
 			continue
@@ -26,7 +34,7 @@ func main() {
 			continue
 		}
 		for _, addr := range addrs {
-			ip, ipnet, err := net.ParseCIDR(addr.String())
+			ip, _, err := net.ParseCIDR(addr.String())
 			if err != nil {
 				log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
 				continue
@@ -34,7 +42,7 @@ func main() {
 			if skipIP(ip) {
 				continue
 			}
-			fmt.Printf("ip = %v, mask = %v, mac = %v\n", ip, ipnet.IP, iface)
+			fmt.Printf("ip = %v\n", ip)
 		}
 	}
 }
