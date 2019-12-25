@@ -30,12 +30,8 @@ var keyFlag = getopt.StringLong("key", 'k', os.Getenv("GJALLARHORN_KEY"), "secre
 
 func main() {
 	getopt.Parse()
-	if *domainFlag == "" || *monitorFlag == "" {
+	if *domainFlag == "" || *monitorFlag == "" || *keyFlag == "" {
 		getopt.Usage()
-		os.Exit(1)
-	}
-	if *keyFlag == "" {
-		fmt.Printf("GJALLARHORN_KEY is not set\n")
 		os.Exit(1)
 	}
 
