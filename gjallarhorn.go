@@ -26,7 +26,7 @@ var _, legacyNetwork, _ = net.ParseCIDR("0.0.0.0/0")
 
 var domainFlag = getopt.StringLong("domain", 'd', "", "the base domain used to fully qualify hostnames (required)")
 var monitorFlag = getopt.StringLong("monitor", 'm', "", "url of backend server (required)")
-var secretKey = []byte(os.Getenv("GJALLARHORN_KEY"))
+var keyFlag = getopt.StringLong("key", 'k', os.Getenv("GJALLARHORN_KEY"), "secret key for signature of monitor message.")
 
 func main() {
 	getopt.Parse()
@@ -34,7 +34,7 @@ func main() {
 		getopt.Usage()
 		os.Exit(1)
 	}
-	if len(secretKey) == 0 {
+	if *keyFlag == "" {
 		fmt.Printf("GJALLARHORN_KEY is not set\n")
 		os.Exit(1)
 	}
@@ -57,18 +57,18 @@ func main() {
 			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
-	values := url.Values{}
-	authen := hmac.New(sha256.New, secretKey)
-	authen.Write([]byte(hostname))
-	values.Set("hostname", hostname)
+	form := url.Values{}
+	sig := hmac.New(sha256.New, []byte(*keyFlag))
+	sig.Write([]byte(hostname))
+	form.Set("hostname", hostname)
 	for _, ip := range ips {
 		ip := ip.String()
-		values.Add("ip", ip)
-		authen.Write([]byte(ip))
+		form.Add("ip", ip)
+		sig.Write([]byte(ip))
 	}
-	values.Set("authen", base64.RawStdEncoding.EncodeToString(authen.Sum(nil)))
+	form.Set("sig", base64.RawStdEncoding.EncodeToString(sig.Sum(nil)))
 
-	client.PostForm(*monitorFlag, values)
+	client.PostForm(*monitorFlag, form)
 }
 
 func findFullHostname() string {
