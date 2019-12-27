@@ -1,19 +1,25 @@
-package main
+package message
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"github.com/pborman/getopt/v2"
+	"io"
 	"log"
 	"net"
-	"net/http"
-	"net/url"
 	"os"
+	"runtime"
 	"strings"
-	"time"
+
+	"github.com/dylanwh/gjallarhorn/config"
 )
+
+type Message struct {
+	Hostname           string
+	PublishedAddress   net.IP
+	InterfaceAddresses []net.IP
+	OperatingSystem    string
+}
 
 /* Unique Local Addresses prefix is fc00::/7 */
 var _, uniqueLocalNetwork, _ = net.ParseCIDR("fc00::/7")
@@ -24,51 +30,41 @@ var _, linkLocalNetwork, _ = net.ParseCIDR("fe80::/10")
 /* Consider the entire IPv4 internet to be legacy */
 var _, legacyNetwork, _ = net.ParseCIDR("0.0.0.0/0")
 
-var domainFlag = getopt.StringLong("domain", 'd', "", "the base domain used to fully qualify hostnames (required)")
-var monitorFlag = getopt.StringLong("monitor", 'm', "", "url of backend server (required)")
-var keyFlag = getopt.StringLong("key", 'k', os.Getenv("GJALLARHORN_KEY"), "secret key for signature of monitor message.")
+func New(c *config.Config) *Message {
+	hostname := findFullHostname(c.Domain())
+	publishedAddr := findPublishedAddress(hostname)
+	ifAddrs := findAddresses(c.IfName())
 
-func main() {
-	getopt.Parse()
-	if *domainFlag == "" || *monitorFlag == "" || *keyFlag == "" {
-		getopt.Usage()
-		os.Exit(1)
+	return &Message{
+		Hostname:           hostname,
+		PublishedAddress:   publishedAddr,
+		InterfaceAddresses: ifAddrs,
+		OperatingSystem:    runtime.GOOS,
 	}
-
-	hostname := findFullHostname()
-	ips := findAddresses()
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				LocalAddr: &net.TCPAddr{IP: ips[0]},
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-				DualStack: true,
-			}).DialContext,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-	}
-	form := url.Values{}
-	sig := hmac.New(sha256.New, []byte(*keyFlag))
-	sig.Write([]byte(hostname))
-	form.Set("hostname", hostname)
-	for _, ip := range ips {
-		ip := ip.String()
-		form.Add("ip", ip)
-		sig.Write([]byte(ip))
-	}
-	form.Set("sig", base64.RawStdEncoding.EncodeToString(sig.Sum(nil)))
-
-	client.PostForm(*monitorFlag, form)
 }
 
-func findFullHostname() string {
-	domain := *domainFlag
+func (m *Message) Reader() io.Reader {
+	json, err := json.Marshal(m)
+	if err != nil {
+		log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
+		panic(err)
+	}
+	return bytes.NewBuffer(json)
+
+}
+
+func findPublishedAddress(hostname string) net.IP {
+
+	ips, err := net.LookupIP(hostname)
+	if err != nil {
+		log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
+		return nil
+	}
+
+	return ips[0]
+}
+
+func findFullHostname(domain string) string {
 	if domain[0] != '.' {
 		domain = "." + domain
 	}
@@ -83,13 +79,12 @@ func findFullHostname() string {
  * This returns a list of IPv6 addresses that are (probably) routable. outable
  * means they're usable across the public internet and not just a LAN. *
  */
-func findAddresses() []net.IP {
+func findAddresses(ifname string) []net.IP {
 	var ips []net.IP
 
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
-		return ips
 	}
 
 	for _, iface := range ifaces {
@@ -97,11 +92,18 @@ func findAddresses() []net.IP {
 		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagPointToPoint != 0 {
 			continue
 		}
+
+		/* are we filtering by interface name? */
+		if ifname != "" && ifname != iface.Name {
+			continue
+		}
+
 		addrs, err := iface.Addrs()
 		if err != nil {
 			log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
 			continue
 		}
+
 		for _, addr := range addrs {
 			ip, _, err := net.ParseCIDR(addr.String())
 			if err != nil {
