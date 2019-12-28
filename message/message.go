@@ -91,6 +91,7 @@ func findFullHostname(domain string) string {
  */
 func findAddresses() map[string][]net.IP {
 	var ips map[string][]net.IP
+	ips["ALL"] = make([]net.IP, 0)
 
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -122,6 +123,9 @@ func findAddresses() map[string][]net.IP {
 			 */
 			if uniqueLocalNetwork.Contains(ip) || linkLocalNetwork.Contains(ip) || legacyNetwork.Contains(ip) {
 				continue
+			}
+			if ips[iface.Name] == nil {
+				ips[iface.Name] = make([]net.IP, 0)
 			}
 			ips[iface.Name] = append(ips[iface.Name], ip)
 			ips["ALL"] = append(ips["ALL"], ip)
