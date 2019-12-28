@@ -90,7 +90,7 @@ func findFullHostname(domain string) string {
  * means they're usable across the public internet and not just a LAN. *
  */
 func findAddresses() map[string][]net.IP {
-	var ips map[string][]net.IP
+	var ips map[string][]net.IP = make(map[string][]net.IP)
 	ips["ALL"] = make([]net.IP, 0)
 
 	ifaces, err := net.Interfaces()
