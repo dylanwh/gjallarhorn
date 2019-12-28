@@ -11,6 +11,7 @@ import (
 	"github.com/dylanwh/gjallarhorn/message"
 )
 
+/*UserAgent ...*/
 type UserAgent struct {
 	config *config.Client
 	client *http.Client
@@ -18,7 +19,7 @@ type UserAgent struct {
 
 /*New ...*/
 func New(c *config.Client) *UserAgent {
-	return &UserAgent{config: c, client: &http.Client{Transport: DefaultTransport}}
+	return &UserAgent{config: c, client: &http.Client{Transport: defaultTransport}}
 }
 
 /*Monitor ...*/
@@ -29,6 +30,7 @@ func (ua *UserAgent) Monitor() string {
 /*ErrNoSourceIP ...*/
 var ErrNoSourceIP error = errors.New("Cannot find IPv6 Source IP")
 
+/*Send ...*/
 func (ua *UserAgent) Send(msg *message.Message) (*http.Response, error) {
 	json, err := json.Marshal(msg)
 	if err != nil {
@@ -39,11 +41,13 @@ func (ua *UserAgent) Send(msg *message.Message) (*http.Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to create POST request: %v", err)
 	}
-	if msg.PublishedAddress != nil {
+
+	switch {
+	case msg.PublishedAddress != nil:
 		req.Header.Set("Source-IP", msg.PublishedAddress.String())
-	} else if len(msg.InterfaceAddresses) > 0 {
+	case len(msg.InterfaceAddresses) > 0:
 		req.Header.Set("Source-IP", msg.InterfaceAddresses[0].String())
-	} else {
+	default:
 		return nil, ErrNoSourceIP
 	}
 

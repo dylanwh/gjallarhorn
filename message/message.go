@@ -16,6 +16,7 @@ import (
 	"github.com/dylanwh/gjallarhorn/config"
 )
 
+/*Message is all the information that gjallarhorn sends to gjallarheim. */
 type Message struct {
 	Hostname           string
 	Ifname             string
@@ -33,6 +34,7 @@ var _, linkLocalNetwork, _ = net.ParseCIDR("fe80::/10")
 /* Consider the entire IPv4 internet to be legacy */
 var _, legacyNetwork, _ = net.ParseCIDR("0.0.0.0/0")
 
+/*New constructs a message containing all the information of the system it is running on. */
 func New(c *config.Client) *Message {
 	hostname := findFullHostname(c.Domain())
 	publishedAddr := findPublishedAddress(hostname)
@@ -55,24 +57,21 @@ func (m *Message) Sign(k config.Keyer) (string, error) {
 	enc := json.NewEncoder(h)
 	if err := enc.Encode(m); err != nil {
 		return "", err
-	} else {
-		return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 	}
+	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
 func findPublishedAddress(hostname string) net.IP {
 
 	ips, err := net.LookupIP(hostname)
 	if err != nil {
-		log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
+		log.Println(fmt.Errorf("gjallarhorn: %v", err.Error()))
 		return nil
 	}
 	if len(ips) > 0 {
 		return ips[0]
-	} else {
-		return nil
 	}
-
+	return nil
 }
 
 func findFullHostname(domain string) string {
@@ -95,7 +94,7 @@ func findAddresses(ifname string) []net.IP {
 
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
+		log.Println(fmt.Errorf("gjallarhorn: %v", err.Error()))
 	}
 
 	for _, iface := range ifaces {
@@ -111,14 +110,14 @@ func findAddresses(ifname string) []net.IP {
 
 		addrs, err := iface.Addrs()
 		if err != nil {
-			log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
+			log.Println(fmt.Errorf("gjallarhorn: %v", err.Error()))
 			continue
 		}
 
 		for _, addr := range addrs {
 			ip, _, err := net.ParseCIDR(addr.String())
 			if err != nil {
-				log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
+				log.Println(fmt.Errorf("gjallarhorn: %v", err.Error()))
 				continue
 			}
 

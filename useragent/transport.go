@@ -7,11 +7,11 @@ import (
 	"time"
 )
 
-type Transport struct {
+type transport struct {
 	transport http.Transport
 }
 
-var DefaultTransport http.RoundTripper = &Transport{
+var defaultTransport http.RoundTripper = &transport{
 	transport: http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           newDialer(nil).DialContext,
@@ -22,7 +22,7 @@ var DefaultTransport http.RoundTripper = &Transport{
 	},
 }
 
-func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("User-Agent", "Gjallarhorn")
 
 	sourceIP := req.Header.Get("Source-IP")
