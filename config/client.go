@@ -12,6 +12,7 @@ type Client struct {
 	monitor *string
 	key     *string
 	ifname  *string
+	debug   *bool
 }
 
 /*NewClient ...*/
@@ -20,7 +21,8 @@ func NewClient() *Client {
 		domain:  getopt.StringLong("domain", 'd', "", "the base domain used to fully qualify hostnames (required)"),
 		monitor: getopt.StringLong("monitor", 'm', "", "url of backend server (required)"),
 		key:     keyflag(),
-		ifname:  getopt.StringLong("ifname", 'i', ""),
+		ifname:  getopt.StringLong("ifname", 'i', "", "name of the interface to look at"),
+		debug:   getopt.BoolLong("debug", 'D', "debug mode"),
 	}
 	getopt.Parse()
 	return c
@@ -28,7 +30,10 @@ func NewClient() *Client {
 
 /*CheckArgs ... */
 func (c *Client) CheckArgs() {
-	if *c.domain == "" || *c.monitor == "" || *c.key == "" {
+	if *c.debug {
+		return
+	}
+	if *c.domain == "" || !*c.debug || (*c.monitor == "" || *c.key == "") {
 		getopt.Usage()
 		os.Exit(1)
 	}
@@ -52,4 +57,8 @@ func (c *Client) Key() string {
 /*IfName ...*/
 func (c *Client) IfName() string {
 	return *c.ifname
+}
+
+func (c *Client) Debug() bool {
+	return *c.debug
 }
