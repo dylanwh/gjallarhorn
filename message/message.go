@@ -21,7 +21,7 @@ type Message struct {
 	Hostname           string
 	Ifname             string
 	PublishedAddress   net.IP
-	InterfaceAddresses []net.IP
+	InterfaceAddresses map[string][]net.IP
 	OperatingSystem    string
 }
 
@@ -38,7 +38,7 @@ var _, legacyNetwork, _ = net.ParseCIDR("0.0.0.0/0")
 func New(c *config.Client) *Message {
 	hostname := findFullHostname(c.Domain())
 	publishedAddr := findPublishedAddress(hostname)
-	ifAddrs := findAddresses(c.IfName())
+	ifAddrs := findAddresses()
 
 	return &Message{
 		Hostname:           hostname,
@@ -89,8 +89,8 @@ func findFullHostname(domain string) string {
  * This returns a list of IPv6 addresses that are (probably) routable. outable
  * means they're usable across the public internet and not just a LAN. *
  */
-func findAddresses(ifname string) []net.IP {
-	var ips []net.IP
+func findAddresses() map[string][]net.IP {
+	var ips map[string][]net.IP
 
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -100,11 +100,6 @@ func findAddresses(ifname string) []net.IP {
 	for _, iface := range ifaces {
 		/* we don't bother with loopback (localhost) or point-to-point (vpn?) interfaces */
 		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagPointToPoint != 0 {
-			continue
-		}
-
-		/* are we filtering by interface name? */
-		if ifname != "" && ifname != iface.Name {
 			continue
 		}
 
@@ -128,7 +123,8 @@ func findAddresses(ifname string) []net.IP {
 			if uniqueLocalNetwork.Contains(ip) || linkLocalNetwork.Contains(ip) || legacyNetwork.Contains(ip) {
 				continue
 			}
-			ips = append(ips, ip)
+			ips[iface.Name] = append(ips[iface.Name], ip)
+			ips["ALL"] = append(ips["ALL"], ip)
 		}
 	}
 

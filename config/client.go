@@ -21,7 +21,7 @@ func NewClient() *Client {
 		domain:  getopt.StringLong("domain", 'd', "", "the base domain used to fully qualify hostnames (required)"),
 		monitor: getopt.StringLong("monitor", 'm', "", "url of backend server (required)"),
 		key:     keyflag(),
-		ifname:  getopt.StringLong("ifname", 'i', "", "name of the interface to look at"),
+		ifname:  getopt.StringLong("ifname", 'i', "ALL", "name of the interface to look at"),
 		debug:   getopt.BoolLong("debug", 'D', "debug mode"),
 	}
 	getopt.Parse()

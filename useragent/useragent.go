@@ -42,11 +42,13 @@ func (ua *UserAgent) Send(msg *message.Message) (*http.Response, error) {
 		return nil, fmt.Errorf("unable to create POST request: %v", err)
 	}
 
+	ifname := ua.config.IfName()
+
 	switch {
 	case msg.PublishedAddress != nil:
 		req.Header.Set("Source-IP", msg.PublishedAddress.String())
-	case len(msg.InterfaceAddresses) > 0:
-		req.Header.Set("Source-IP", msg.InterfaceAddresses[0].String())
+	case len(msg.InterfaceAddresses[ifname]) > 0:
+		req.Header.Set("Source-IP", msg.InterfaceAddresses[ifname][0].String())
 	default:
 		return nil, ErrNoSourceIP
 	}
