@@ -30,10 +30,7 @@ func NewClient() *Client {
 
 /*CheckArgs ... */
 func (c *Client) CheckArgs() {
-	if *c.debug {
-		return
-	}
-	if *c.domain == "" || !*c.debug || (*c.monitor == "" || *c.key == "") {
+	if *c.domain == "" || !*c.debug && (*c.monitor == "" || *c.key == "") {
 		getopt.Usage()
 		os.Exit(1)
 	}
