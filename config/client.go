@@ -6,41 +6,43 @@ import (
 	"github.com/pborman/getopt"
 )
 
-type Config struct {
+type Client struct {
 	domain  *string
 	monitor *string
 	key     *string
 	ifname  *string
 }
 
-func ParseArgs() *Config {
-	var config = &Config{
+func NewClient() *Client {
+	c := &Client{
 		domain:  getopt.StringLong("domain", 'd', "", "the base domain used to fully qualify hostnames (required)"),
 		monitor: getopt.StringLong("monitor", 'm', "", "url of backend server (required)"),
-		key:     getopt.StringLong("key", 'k', os.Getenv("GJALLARHORN_KEY"), "secret key for signature of monitor message."),
+		key:     keyflag(),
 		ifname:  getopt.StringLong("ifname", 'i', ""),
 	}
 	getopt.Parse()
-	if *config.domain == "" || *config.monitor == "" || *config.key == "" {
+	return c
+}
+
+func (c *Client) CheckArgs() {
+	if *c.domain == "" || *c.monitor == "" || *c.key == "" {
 		getopt.Usage()
 		os.Exit(1)
 	}
-
-	return config
 }
 
-func (c *Config) Domain() string {
+func (c *Client) Domain() string {
 	return *c.domain
 }
 
-func (c *Config) Monitor() string {
+func (c *Client) Monitor() string {
 	return *c.monitor
 }
 
-func (c *Config) Key() []byte {
-	return []byte(*c.key)
+func (c *Client) Key() string {
+	return *c.key
 }
 
-func (c *Config) IfName() string {
+func (c *Client) IfName() string {
 	return *c.ifname
 }

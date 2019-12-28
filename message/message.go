@@ -1,10 +1,12 @@
 package message
 
 import (
-	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
@@ -16,6 +18,7 @@ import (
 
 type Message struct {
 	Hostname           string
+	Ifname             string
 	PublishedAddress   net.IP
 	InterfaceAddresses []net.IP
 	OperatingSystem    string
@@ -30,27 +33,31 @@ var _, linkLocalNetwork, _ = net.ParseCIDR("fe80::/10")
 /* Consider the entire IPv4 internet to be legacy */
 var _, legacyNetwork, _ = net.ParseCIDR("0.0.0.0/0")
 
-func New(c *config.Config) *Message {
+func New(c *config.Client) *Message {
 	hostname := findFullHostname(c.Domain())
 	publishedAddr := findPublishedAddress(hostname)
 	ifAddrs := findAddresses(c.IfName())
 
 	return &Message{
 		Hostname:           hostname,
+		Ifname:             c.IfName(),
 		PublishedAddress:   publishedAddr,
 		InterfaceAddresses: ifAddrs,
 		OperatingSystem:    runtime.GOOS,
 	}
 }
 
-func (m *Message) Reader() io.Reader {
-	json, err := json.Marshal(m)
-	if err != nil {
-		log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
-		panic(err)
+func (m *Message) Sign(k config.Keyer) (string, error) {
+	if k == nil {
+		return "", errors.New("got nil Keyer")
 	}
-	return bytes.NewBuffer(json)
-
+	h := hmac.New(sha256.New, []byte(k.Key()))
+	enc := json.NewEncoder(h)
+	if err := enc.Encode(m); err != nil {
+		return "", err
+	} else {
+		return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
+	}
 }
 
 func findPublishedAddress(hostname string) net.IP {
@@ -60,8 +67,12 @@ func findPublishedAddress(hostname string) net.IP {
 		log.Print(fmt.Errorf("gjallarhorn: %v\n", err.Error()))
 		return nil
 	}
+	if len(ips) > 0 {
+		return ips[0]
+	} else {
+		return nil
+	}
 
-	return ips[0]
 }
 
 func findFullHostname(domain string) string {

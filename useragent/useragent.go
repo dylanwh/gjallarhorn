@@ -1,41 +1,54 @@
 package useragent
 
 import (
-	"io"
-	"net"
+	"bytes"
+	"encoding/json"
 	"net/http"
+
+	"github.com/dylanwh/gjallarhorn/config"
+	"github.com/dylanwh/gjallarhorn/message"
 )
 
 type UserAgent struct {
-	SourceIP *net.IP
-	client   *http.Client
+	config *config.Client
+	client *http.Client
 }
 
-func New() *UserAgent {
-	return &UserAgent{SourceIP: nil, client: &http.Client{Transport: DefaultTransport}}
+func New(c *config.Client) *UserAgent {
+	return &UserAgent{config: c, client: &http.Client{Transport: DefaultTransport}}
 }
 
-func (ua *UserAgent) Do(req *http.Request) (*http.Response, error) {
-
-	if ua.SourceIP != nil {
-		req.Header.Set("Source-IP", ua.SourceIP.String())
-	}
-	return ua.client.Do(req)
+func (ua *UserAgent) Monitor() string {
+	return ua.config.Monitor()
 }
 
-func (ua *UserAgent) Get(url string) (resp *http.Response, err error) {
-	req, err := http.NewRequest("GET", url, nil)
+func (ua *UserAgent) Send(msg *message.Message) (*http.Response, error) {
+	json, err := json.Marshal(msg)
 	if err != nil {
 		return nil, err
 	}
-	return ua.Do(req)
-}
-
-func (ua *UserAgent) Post(url, contentType string, body io.Reader) (resp *http.Response, err error) {
-	req, err := http.NewRequest("POST", url, body)
+	body := bytes.NewBuffer(json)
+	req, err := http.NewRequest("POST", ua.Monitor(), body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", contentType)
-	return ua.Do(req)
+	if msg.PublishedAddress != nil {
+		req.Header.Set("Source-IP", msg.PublishedAddress.String())
+	} else if len(msg.InterfaceAddresses) > 0 {
+		req.Header.Set("Source-IP", msg.InterfaceAddresses[0].String())
+	}
+
+	sig, err := msg.Sign(ua.config)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Signature", sig)
+
+	resp, err := ua.client.Do(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }

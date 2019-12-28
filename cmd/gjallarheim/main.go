@@ -2,28 +2,71 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 
+	"github.com/dylanwh/gjallarhorn/config"
 	"github.com/dylanwh/gjallarhorn/message"
-	"github.com/pborman/getopt"
 )
 
-func main() {
-	var listenFlag = getopt.StringLong("listen", 'l', ":8080", "ip and port to listen on")
-	getopt.Parse()
+type handler struct{ config *config.Server }
 
-	http.HandleFunc("/", Index)
-	http.ListenAndServe(*listenFlag, nil)
+/*ErrInvalidSignature the error returned when a signature doesn't match. */
+var ErrInvalidSignature error = errors.New("Invalid Signature")
+
+/*ErrInvalidJSON ...*/
+var ErrInvalidJSON error = errors.New("Invalid JSON")
+
+func main() {
+	cfg := config.NewServer()
+	cfg.CheckArgs()
+
+	http.Handle("/", &handler{config: cfg})
+	http.ListenAndServe(cfg.Listen(), nil)
 }
 
-func Index(w http.ResponseWriter, r *http.Request) {
-	var msg message.Message
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&msg); err != nil {
-		w.WriteHeader(400)
-		fmt.Fprintln(w, err)
+func (h *handler) ServeHTTP(out http.ResponseWriter, req *http.Request) {
+	msg, err := h.parseMessage(req)
+	if err != nil {
+		log.Println(err)
+		switch {
+		case errors.Is(err, ErrInvalidSignature):
+			out.WriteHeader(400)
+			fmt.Fprintf(out, "invalid signature")
+			return
+		case errors.Is(err, ErrInvalidJSON):
+			out.WriteHeader(400)
+			fmt.Fprintf(out, "invalid json")
+			return
+		default:
+			out.WriteHeader(500)
+			fmt.Fprintf(out, "internal error")
+			return
+		}
 	}
-	fmt.Printf("%+v\n", msg)
-	fmt.Fprintf(w, "Hello, %s!", r.URL.Path[1:])
+	fmt.Fprintf(out, "Good job")
+
+	log.Printf("msg: %+v\n", msg)
+
+}
+
+func (h *handler) parseMessage(req *http.Request) (*message.Message, error) {
+
+	var msg message.Message
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&msg); err != nil {
+		log.Printf("json error: %v\n", err)
+		return nil, ErrInvalidJSON
+	}
+	sig, err := msg.Sign(h.config)
+	if err != nil {
+		return nil, fmt.Errorf("error calculating signature: %v", err)
+	}
+	if sig != req.Header.Get("Signature") {
+		return nil, ErrInvalidSignature
+	}
+
+	return &msg, nil
 }

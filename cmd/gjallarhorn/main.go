@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 
 	"github.com/dylanwh/gjallarhorn/config"
 	"github.com/dylanwh/gjallarhorn/message"
@@ -9,13 +10,15 @@ import (
 )
 
 func main() {
-	config := config.ParseArgs()
-	msg := message.New(config)
-	ua := useragent.New()
-	resp, err := ua.Post(config.Monitor(), "application/json", msg.Reader())
+	cfg := config.NewClient()
+	cfg.CheckArgs()
+	msg := message.New(cfg)
+	ua := useragent.New(cfg)
+	resp, err := ua.Send(msg)
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
 	}
-	fmt.Println(resp)
+	buf, err := ioutil.ReadAll(resp.Body)
+	fmt.Printf("%s\n", string(buf))
 
 }
