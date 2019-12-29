@@ -32,17 +32,6 @@ func main() {
 		}
 		return
 	}
-	if !msg.KnownIP.Equal(*msg.PublicIP) {
-		if cfg.Verbose() {
-			log.Fatalf(
-				"%s is misconfigured.\n  %s was found\n  %s was expected\n",
-				msg.FullHostname,
-				msg.KnownIP,
-				msg.PublicIP,
-			)
-		}
-		return
-	}
 
 	if cfg.Debug() {
 		buf, err := json.MarshalIndent(msg, "", "  ")
