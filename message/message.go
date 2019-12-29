@@ -18,35 +18,38 @@ import (
 
 /*Message is all the information that gjallarhorn sends to gjallarheim. */
 type Message struct {
-	Hostname           string
-	Ifname             string
-	PublishedAddress   net.IP
-	InterfaceAddresses map[string][]net.IP
-	OperatingSystem    string
+	Hostname        string
+	FullHostname    string
+	KnownIP         *net.IP
+	Ifname          string
+	PublicIP        *net.IP
+	OperatingSystem string
 }
 
-/* Unique Local Addresses prefix is fc00::/7 */
-var _, uniqueLocalNetwork, _ = net.ParseCIDR("fc00::/7")
-
-/* Link Local addresses are fe80::/10 */
-var _, linkLocalNetwork, _ = net.ParseCIDR("fe80::/10")
-
-/* Consider the entire IPv4 internet to be legacy */
-var _, legacyNetwork, _ = net.ParseCIDR("0.0.0.0/0")
+var _, globalUnicastNetwork, _ = net.ParseCIDR("2000::/3")
 
 /*New constructs a message containing all the information of the system it is running on. */
-func New(c *config.Client) *Message {
-	hostname := findFullHostname(c.Domain())
-	publishedAddr := findPublishedAddress(hostname)
-	ifAddrs := findAddresses()
-
-	return &Message{
-		Hostname:           hostname,
-		Ifname:             c.IfName(),
-		PublishedAddress:   publishedAddr,
-		InterfaceAddresses: ifAddrs,
-		OperatingSystem:    runtime.GOOS,
+func New(c *config.Client) (*Message, error) {
+	hostname, fullHostname, err := findHostname(c.Domain())
+	if err != nil {
+		return nil, err
 	}
+
+	iface, err := findInterface(c.IfName())
+	if err != nil {
+		return nil, err
+	}
+
+	msg := &Message{
+		Hostname:        hostname,
+		FullHostname:    fullHostname,
+		KnownIP:         findKnownIP(fullHostname),
+		PublicIP:        findPublicIP(iface),
+		Ifname:          c.IfName(),
+		OperatingSystem: runtime.GOOS,
+	}
+
+	return msg, nil
 }
 
 func (m *Message) Sign(k config.Keyer) (string, error) {
@@ -61,76 +64,79 @@ func (m *Message) Sign(k config.Keyer) (string, error) {
 	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
-func findPublishedAddress(hostname string) net.IP {
-
-	ips, err := net.LookupIP(hostname)
+func findHostname(domain string) (hostname string, fullHostname string, err error) {
+	hostname, err = os.Hostname()
 	if err != nil {
-		log.Println(fmt.Errorf("gjallarhorn: %v", err.Error()))
-		return nil
+		return
 	}
-	if len(ips) > 0 {
-		return ips[0]
+	if hostname == "" {
+		err = fmt.Errorf("system hostname is blank?")
+		return
 	}
-	return nil
+
+	if strings.HasSuffix(hostname, domain) {
+		fullHostname = hostname
+	} else {
+		if strings.Contains(hostname, ".") {
+			parts := strings.SplitN(hostname, ".", 2)
+			fullHostname = parts[0] + domain
+		} else {
+			fullHostname = hostname + domain
+		}
+	}
+
+	return
 }
 
-func findFullHostname(domain string) string {
-	if domain[0] != '.' {
-		domain = "." + domain
-	}
-	hostname, err := os.Hostname()
+func findKnownIP(fullHostname string) *net.IP {
+	ips, err := net.LookupIP(fullHostname)
 	if err != nil {
-		panic(err)
+		log.Println(fmt.Errorf("Unable to lookup ip for %s: %w", fullHostname, err))
+		return nil
 	}
-	return strings.SplitN(hostname, ".", 2)[0] + domain
+
+	for _, ip := range ips {
+		if globalUnicastNetwork.Contains(ip) {
+			return &ip
+		}
+	}
+	return nil
 }
 
 /*
  * This returns a list of IPv6 addresses that are (probably) routable. outable
  * means they're usable across the public internet and not just a LAN. *
  */
-func findAddresses() map[string][]net.IP {
-	var ips map[string][]net.IP = make(map[string][]net.IP)
-	ips["ALL"] = make([]net.IP, 0)
-
+func findInterface(ifname string) (*net.Interface, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		log.Println(fmt.Errorf("gjallarhorn: %v", err.Error()))
+		return nil, err
 	}
-
 	for _, iface := range ifaces {
-		/* we don't bother with loopback (localhost) or point-to-point (vpn?) interfaces */
-		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagPointToPoint != 0 {
-			continue
-		}
-
-		addrs, err := iface.Addrs()
-		if err != nil {
-			log.Println(fmt.Errorf("gjallarhorn: %v", err.Error()))
-			continue
-		}
-
-		for _, addr := range addrs {
-			ip, _, err := net.ParseCIDR(addr.String())
-			if err != nil {
-				log.Println(fmt.Errorf("gjallarhorn: %v", err.Error()))
-				continue
-			}
-
-			/*
-			 * we ignore ULA, link local, and legacy (IPv4) ips. Anything that is
-			 * not one of those is probably a routable IPv6 address.
-			 */
-			if uniqueLocalNetwork.Contains(ip) || linkLocalNetwork.Contains(ip) || legacyNetwork.Contains(ip) {
-				continue
-			}
-			if ips[iface.Name] == nil {
-				ips[iface.Name] = make([]net.IP, 0)
-			}
-			ips[iface.Name] = append(ips[iface.Name], ip)
-			ips["ALL"] = append(ips["ALL"], ip)
+		if iface.Name == ifname {
+			return &iface, nil
 		}
 	}
 
-	return ips
+	return nil, fmt.Errorf("interface not found: %s", ifname)
+}
+
+func findPublicIP(iface *net.Interface) *net.IP {
+	addrs, err := iface.Addrs()
+	if err != nil {
+		log.Println(fmt.Errorf("Unable to get ips from interface %s: %w", iface.Name, err))
+		return nil
+	}
+	for _, addr := range addrs {
+		ip, _, err := net.ParseCIDR(addr.String())
+		if err != nil {
+			log.Println(fmt.Errorf("Unable to parse CIDR from %s: %v", addr.String(), err))
+			continue
+		}
+		if globalUnicastNetwork.Contains(ip) {
+			return &ip
+		}
+	}
+
+	return nil
 }

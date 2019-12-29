@@ -3,7 +3,6 @@ package useragent
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -27,9 +26,6 @@ func (ua *UserAgent) Monitor() string {
 	return ua.config.Monitor()
 }
 
-/*ErrNoSourceIP ...*/
-var ErrNoSourceIP error = errors.New("Cannot find IPv6 Source IP")
-
 /*Send ...*/
 func (ua *UserAgent) Send(msg *message.Message) (*http.Response, error) {
 	json, err := json.Marshal(msg)
@@ -38,31 +34,25 @@ func (ua *UserAgent) Send(msg *message.Message) (*http.Response, error) {
 	}
 	body := bytes.NewBuffer(json)
 	req, err := http.NewRequest("POST", ua.Monitor(), body)
+	fmt.Println(req)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create POST request: %v", err)
+		return nil, fmt.Errorf("unable to create POST request: %w", err)
 	}
 
-	ifname := ua.config.IfName()
-
-	switch {
-	case msg.PublishedAddress != nil:
-		req.Header.Set("Source-IP", msg.PublishedAddress.String())
-	case len(msg.InterfaceAddresses[ifname]) > 0:
-		req.Header.Set("Source-IP", msg.InterfaceAddresses[ifname][0].String())
-	default:
-		return nil, ErrNoSourceIP
+	if msg.PublicIP != nil {
+		req.Header.Set("Source-IP", msg.PublicIP.String())
 	}
 
 	sig, err := msg.Sign(ua.config)
 	if err != nil {
-		return nil, fmt.Errorf("unable to sign message: %v", err)
+		return nil, fmt.Errorf("unable to sign message: %w", err)
 	}
 	req.Header.Set("Signature", sig)
 
 	resp, err := ua.client.Do(req)
 
 	if err != nil {
-		return nil, fmt.Errorf("unable to send POST request: %v", err)
+		return nil, fmt.Errorf("unable to send POST request: %w", err)
 	}
 
 	return resp, nil
