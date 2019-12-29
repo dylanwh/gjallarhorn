@@ -55,7 +55,9 @@ func (h *handler) ServeHTTP(out http.ResponseWriter, req *http.Request) {
 			msg.KnownIP,
 			msg.PublicIP,
 		)
+		return
 	}
+	log.Printf("%s (%s) is [%s]\n", msg.Hostname, msg.FullHostname, msg.PublicIP.String())
 }
 
 func (h *handler) parseMessage(req *http.Request) (*message.Message, error) {
