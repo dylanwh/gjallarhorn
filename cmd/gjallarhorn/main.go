@@ -55,8 +55,12 @@ func main() {
 	}
 
 	ua := useragent.New(cfg)
-	_, err = ua.Send(msg)
+	resp, err := ua.Send(msg)
 	if err != nil {
 		fmt.Printf("http error: %s\n", err)
+	}
+
+	if resp.StatusCode != 200 {
+		fmt.Printf("http status: %d\n", resp.StatusCode)
 	}
 }

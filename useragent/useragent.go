@@ -34,7 +34,6 @@ func (ua *UserAgent) Send(msg *message.Message) (*http.Response, error) {
 	}
 	body := bytes.NewBuffer(json)
 	req, err := http.NewRequest("POST", ua.Monitor(), body)
-	fmt.Println(req)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create POST request: %w", err)
 	}
