@@ -20,6 +20,8 @@ var ErrInvalidSignature error = errors.New("Invalid Signature")
 var ErrInvalidJSON error = errors.New("Invalid JSON")
 
 func main() {
+	// systemd gives us timestamps, so remove this.
+	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 	cfg := config.NewServer()
 	cfg.CheckArgs()
 
