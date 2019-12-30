@@ -52,14 +52,20 @@ func (h *handler) ServeHTTP(out http.ResponseWriter, req *http.Request) {
 
 	if !msg.KnownIP.Equal(*msg.PublicIP) {
 		log.Printf(
-			"%s is misconfigured.\n  %s was found\n  %s was expected\n",
+			"%s is misconfigured.\n  [%s] was found\n  [%s] was expected\n",
 			msg.FullHostname,
 			msg.KnownIP,
 			msg.PublicIP,
 		)
 		return
 	}
-	log.Printf("%s (%s) is [%s]\n", msg.Hostname, msg.FullHostname, msg.PublicIP.String())
+	log.Printf("%s [%s] os=%s, host=%s, interface=%s\n",
+		msg.FullHostname,
+		msg.PublicIP.String(),
+		msg.OperatingSystem,
+		msg.Hostname,
+		msg.Ifname,
+	)
 }
 
 func (h *handler) parseMessage(req *http.Request) (*message.Message, error) {
