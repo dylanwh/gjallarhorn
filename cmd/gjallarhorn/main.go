@@ -47,9 +47,11 @@ func main() {
 	resp, err := ua.Send(msg)
 	if err != nil {
 		fmt.Printf("http error: %s\n", err)
+		return
 	}
 
 	if resp.StatusCode != 200 {
 		fmt.Printf("http status: %d\n", resp.StatusCode)
+		return
 	}
 }
