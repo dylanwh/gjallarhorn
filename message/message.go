@@ -89,14 +89,14 @@ func findHostname(domain string) (hostname string, fullHostname string, err erro
 }
 
 func findKnownIP(fullHostname string) *net.IP {
-	ips, err := net.LookupIP(fullHostname)
+	resolver := &net.Resolver{PreferGo: true}
+	ips, err := resolver.LookupIP(fullHostname)
 	if err != nil {
 		log.Println(fmt.Errorf("Unable to lookup ip for %s: %w", fullHostname, err))
 		return nil
 	}
 
 	for _, ip := range ips {
-		log.Printf("ip: %s\n", ip)
 		if globalUnicastNetwork.Contains(ip) {
 			return &ip
 		}
