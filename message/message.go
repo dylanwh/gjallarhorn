@@ -96,6 +96,7 @@ func findKnownIP(fullHostname string) *net.IP {
 	}
 
 	for _, ip := range ips {
+		log.Printf("ip: %s\n", ip)
 		if globalUnicastNetwork.Contains(ip) {
 			return &ip
 		}
