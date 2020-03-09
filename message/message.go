@@ -1,6 +1,7 @@
 package message
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -90,13 +91,14 @@ func findHostname(domain string) (hostname string, fullHostname string, err erro
 
 func findKnownIP(fullHostname string) *net.IP {
 	resolver := &net.Resolver{PreferGo: true}
-	ips, err := resolver.LookupIP(fullHostname)
+	ips, err := resolver.LookupIPAddr(context.Background(), fullHostname)
 	if err != nil {
 		log.Println(fmt.Errorf("Unable to lookup ip for %s: %w", fullHostname, err))
 		return nil
 	}
 
-	for _, ip := range ips {
+	for _, ia := range ips {
+		ip := ia.IP
 		if globalUnicastNetwork.Contains(ip) {
 			return &ip
 		}
